@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>CAD W40 / W400 Fixer</title>
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+--bg:#f6f7f9;--card:#fff;--text:#1d2330;--muted:#5d6678;--line:#d9dde5;--accent:#1f5fd6;--accent-t:#fff;--ok:#18794e;--warn:#b25e09;--err:#c0262d;color-scheme:light}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#14171d;--card:#1d222b;--text:#e8ebf1;--muted:#98a1b3;--line:#2f3644;--accent:#6ea0ff;--accent-t:#0d1220;--ok:#4cc38a;--warn:#f0a24b;--err:#ff7b80;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#14171d;--card:#1d222b;--text:#e8ebf1;--muted:#98a1b3;--line:#2f3644;--accent:#6ea0ff;--accent-t:#0d1220;--ok:#4cc38a;--warn:#f0a24b;--err:#ff7b80;color-scheme:dark}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*,*::before,*::after{box-sizing:inherit}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif}
+main{max-width:720px;margin:0 auto;padding:20px 16px 40px}
+h1{font-size:1.4rem;margin:0 0 4px}
+p.sub{margin:0 0 18px;color:var(--muted)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:14px}
+.card h2{font-size:.95rem;margin:0 0 10px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+#drop{border:2px dashed var(--line);border-radius:12px;padding:28px 12px;text-align:center;cursor:pointer;color:var(--muted)}
+#drop.over{border-color:var(--accent);color:var(--text)}
+#drop strong{color:var(--text)}
+label.opt{display:flex;gap:10px;align-items:center;padding:10px 12px;border:1px solid var(--line);border-radius:10px;margin-bottom:8px;cursor:pointer}
+label.opt:has(input:checked){border-color:var(--accent)}
+label.opt b{font-family:ui-monospace,Consolas,monospace}
+button{font:inherit;border:0;border-radius:10px;padding:12px 18px;background:var(--accent);color:var(--accent-t);font-weight:600;cursor:pointer}
+button:disabled{opacity:.45;cursor:not-allowed}
+button.ghost{background:transparent;color:var(--muted);border:1px solid var(--line);font-weight:500;padding:8px 12px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.files{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:.92rem}
+th,td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line);white-space:nowrap}
+.ok{color:var(--ok)}.warn{color:var(--warn)}.err{color:var(--err)}
+small{color:var(--muted)}
+#msg{margin-top:10px;min-height:1.4em}
+</style>
+</head>
+<body>
+<main>
+  <h1>CAD W40 / W400 Fixer</h1>
+  <p class="sub">Upload several .cad files, pick the option, download them all fixed. Your files are processed in this browser and are not uploaded anywhere.</p>
+
+  <div class="card">
+    <h2>1 · Add files</h2>
+    <div id="drop" tabindex="0" role="button" aria-label="Choose .cad files">
+      <strong>Click to choose</strong> or drag your .cad files here<br><small>You can select many at once</small>
+    </div>
+    <input id="pick" type="file" multiple hidden>
+  </div>
+
+  <div class="card">
+    <h2>2 · Choose the change</h2>
+    <label class="opt"><input type="radio" name="mode" value="40" checked> <span><b>W40 → 40</b> <small>(W400 → 400)</small></span></label>
+    <label class="opt"><input type="radio" name="mode" value="W4"> <span><b>W40 → W4</b> <small>(W400 → W4)</small></span></label>
+    <small>Only the “3B” line is changed. Columns stay aligned, so 30000 does not move.</small>
+  </div>
+
+  <div class="card">
+    <h2>3 · Fix and download</h2>
+    <div class="files" id="list"><small>No files added yet.</small></div>
+    <div style="margin-top:12px">
+      <label class="opt"><input type="radio" name="out" value="zip" checked> <span><b>One ZIP file</b> <small>(all files together)</small></span></label>
+      <label class="opt"><input type="radio" name="out" value="sep"> <span><b>Separate .cad files</b> <small>(one download each; your browser may ask to allow multiple downloads)</small></span></label>
+      <label class="opt" id="folderOpt"><input type="radio" name="out" value="folder"> <span><b>Save into a folder</b> <small>(Chrome or Edge on a computer: you pick the folder and files are written directly)</small></span></label>
+    </div>
+    <div class="row" style="margin-top:12px">
+      <button id="go" disabled>Fix files and download</button>
+      <button id="clear" class="ghost" disabled>Clear list</button>
+      <label><input type="checkbox" id="suffix" checked> <small>add “_fixed” to file names</small></label>
+    </div>
+    <div id="msg" aria-live="polite"></div>
+    <small>A single file always downloads as a normal .cad file.</small>
+  </div>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script>
+(function(){
+  var files = [];            // {name, text, changed}
+  var drop = document.getElementById('drop'), pick = document.getElementById('pick');
+  var list = document.getElementById('list'), go = document.getElementById('go');
+  var clr = document.getElementById('clear'), msg = document.getElementById('msg');
+
+  function bytesToStr(buf){            // byte-for-byte (Latin-1) so nothing gets altered
+    var u = new Uint8Array(buf), out = [], i, CH = 8192;
+    for(i = 0; i < u.length; i += CH) out.push(String.fromCharCode.apply(null, u.subarray(i, i + CH)));
+    return out.join('');
+  }
+  function strToBytes(s){
+    var u = new Uint8Array(s.length);
+    for(var i = 0; i < s.length; i++) u[i] = s.charCodeAt(i) & 255;
+    return u;
+  }
+  var PAT = /(?<![A-Za-z0-9])W400?(?![A-Za-z0-9])/g;
+  function fix(text, mode){
+    var changed = 0;
+    var lines = text.split(/(?<=\n)/).map(function(l){
+      if(l.slice(0,2) !== '3B') return l;
+      var n = l.replace(PAT, function(m){
+        var r = mode === '40' ? m.slice(1) : 'W4';
+        while(r.length < m.length) r += ' ';     // keep columns aligned
+        return r;
+      });
+      if(n !== l) changed++;
+      return n;
+    });
+    return {text: lines.join(''), changed: changed};
+  }
+  function mode(){ return document.querySelector('input[name=mode]:checked').value; }
+
+  function render(){
+    if(!files.length){ list.innerHTML = '<small>No files added yet.</small>'; go.disabled = true; clr.disabled = true; return; }
+    var m = mode(), h = '<table><tr><th>File</th><th>Lines to change</th><th></th></tr>';
+    files.forEach(function(f){
+      var c = fix(f.text, m).changed;
+      var cls = c ? 'ok' : 'warn', note = c ? 'ready' : 'no W40/W400 found';
+      h += '<tr><td></td><td>' + c + '</td><td class="' + cls + '">' + note + '</td></tr>';
+    });
+    list.innerHTML = h + '</table>';
+    var rows = list.querySelectorAll('tr:not(:first-child) td:first-child');
+    files.forEach(function(f, i){ rows[i].textContent = f.name; });
+    go.disabled = false; clr.disabled = false;
+  }
+
+  function add(fl){
+    var arr = Array.prototype.slice.call(fl), left = arr.length;
+    if(!left) return;
+    arr.forEach(function(f){
+      var r = new FileReader();
+      r.onload = function(){
+        files = files.filter(function(x){ return x.name !== f.name; });
+        files.push({name: f.name, text: bytesToStr(r.result)});
+        if(--left === 0){ files.sort(function(a,b){ return a.name < b.name ? -1 : 1; }); render(); }
+      };
+      r.onerror = function(){ if(--left === 0) render(); };
+      r.readAsArrayBuffer(f);
+    });
+    msg.textContent = '';
+  }
+
+  drop.addEventListener('click', function(){ pick.click(); });
+  drop.addEventListener('keydown', function(e){ if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); pick.click(); } });
+  pick.addEventListener('change', function(){ add(pick.files); pick.value = ''; });
+  ['dragenter','dragover'].forEach(function(t){ drop.addEventListener(t, function(e){ e.preventDefault(); drop.classList.add('over'); }); });
+  ['dragleave','drop'].forEach(function(t){ drop.addEventListener(t, function(e){ e.preventDefault(); drop.classList.remove('over'); }); });
+  drop.addEventListener('drop', function(e){ add(e.dataTransfer.files); });
+  document.querySelectorAll('input[name=mode]').forEach(function(r){ r.addEventListener('change', render); });
+  if(!window.showDirectoryPicker){ var fo = document.getElementById('folderOpt'); fo.style.opacity = '.5'; fo.querySelector('input').disabled = true; fo.querySelector('small').textContent = '(not supported in this browser: use Chrome or Edge on a computer)'; }
+  clr.addEventListener('click', function(){ files = []; msg.textContent = ''; render(); });
+
+  function saveBlob(blob, name){
+    var url = URL.createObjectURL(blob), a = document.createElement('a');
+    a.href = url; a.download = name; document.body.appendChild(a); a.click();
+    setTimeout(function(){ URL.revokeObjectURL(url); a.remove(); }, 1000);
+  }
+  function outName(name, suf){
+    if(!suf) return name;
+    var d = name.lastIndexOf('.');
+    return d > 0 ? name.slice(0,d) + '_fixed' + name.slice(d) : name + '_fixed';
+  }
+
+  go.addEventListener('click', async function(){
+    msg.className = ''; msg.textContent = 'Working…';
+    try{
+      var m = mode(), suf = document.getElementById('suffix').checked, total = 0, zero = 0, outs = [];
+      files.forEach(function(f){
+        var res = fix(f.text, m); total += res.changed; if(!res.changed) zero++;
+        outs.push({name: outName(f.name, suf), bytes: strToBytes(res.text)});
+      });
+      var how = document.querySelector('input[name=out]:checked').value;
+      if(outs.length === 1){                       // single file: download it directly
+        saveBlob(new Blob([outs[0].bytes], {type:'application/octet-stream'}), outs[0].name);
+      }else if(how === 'sep'){
+        for(var i = 0; i < outs.length; i++){
+          saveBlob(new Blob([outs[i].bytes], {type:'application/octet-stream'}), outs[i].name);
+          await new Promise(function(r){ setTimeout(r, 400); });
+        }
+      }else if(how === 'folder'){
+        var dir = await window.showDirectoryPicker({mode:'readwrite'});
+        for(var j = 0; j < outs.length; j++){
+          var fh = await dir.getFileHandle(outs[j].name, {create:true});
+          var w = await fh.createWritable();
+          await w.write(outs[j].bytes); await w.close();
+        }
+      }else{
+        if(typeof JSZip === 'undefined') throw new Error('The ZIP library could not load. Check your internet connection and reload.');
+        var zip = new JSZip();
+        outs.forEach(function(o){ zip.file(o.name, o.bytes); });
+        saveBlob(await zip.generateAsync({type:'blob'}), 'fixed_cad_files.zip');
+      }
+      msg.className = 'ok';
+      msg.textContent = 'Done: ' + files.length + ' file(s), ' + total + ' line(s) changed' + (zero ? ' (' + zero + ' file(s) had nothing to change)' : '') + '.';
+    }catch(e){
+      if(e && e.name === 'AbortError'){ msg.className = 'warn'; msg.textContent = 'Cancelled.'; return; }
+      msg.className = 'err'; msg.textContent = 'Something went wrong' + (e && e.message ? ': ' + e.message : '') + '.';
+    }
+  });
+})();
+</script>
+</body>
+</html>
