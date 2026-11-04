@@ -3,26 +3,25 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>CAD W40 / W400 Fixer</title>
+<title>WFix – CAD W-value fixer</title>
 <style>
-:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
---bg:#f6f7f9;--card:#fff;--text:#1d2330;--muted:#5d6678;--line:#d9dde5;--accent:#1f5fd6;--accent-t:#fff;--ok:#18794e;--warn:#b25e09;--err:#c0262d;color-scheme:light}
+:root{box-sizing:border-box;--bg:#f6f7f9;--card:#fff;--text:#1d2330;--muted:#5d6678;--line:#d9dde5;--accent:#1f5fd6;--accent-t:#fff;--ok:#18794e;--warn:#b25e09;--err:#c0262d;color-scheme:light}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#14171d;--card:#1d222b;--text:#e8ebf1;--muted:#98a1b3;--line:#2f3644;--accent:#6ea0ff;--accent-t:#0d1220;--ok:#4cc38a;--warn:#f0a24b;--err:#ff7b80;color-scheme:dark}}
-:root[data-theme="dark"]{--bg:#14171d;--card:#1d222b;--text:#e8ebf1;--muted:#98a1b3;--line:#2f3644;--accent:#6ea0ff;--accent-t:#0d1220;--ok:#4cc38a;--warn:#f0a24b;--err:#ff7b80;color-scheme:dark}
-html{scroll-padding-top:env(safe-area-inset-top,0px)}
 *,*::before,*::after{box-sizing:inherit}
 body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif}
 main{max-width:720px;margin:0 auto;padding:20px 16px 40px}
-h1{font-size:1.4rem;margin:0 0 4px}
+h1{font-size:1.6rem;margin:0}
+p.tag{margin:2px 0 4px;font-weight:600}
 p.sub{margin:0 0 18px;color:var(--muted)}
 .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:14px}
 .card h2{font-size:.95rem;margin:0 0 10px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
 #drop{border:2px dashed var(--line);border-radius:12px;padding:28px 12px;text-align:center;cursor:pointer;color:var(--muted)}
 #drop.over{border-color:var(--accent);color:var(--text)}
 #drop strong{color:var(--text)}
-label.opt{display:flex;gap:10px;align-items:center;padding:10px 12px;border:1px solid var(--line);border-radius:10px;margin-bottom:8px;cursor:pointer}
+label.opt{display:flex;gap:10px;align-items:center;padding:10px 12px;border:1px solid var(--line);border-radius:10px;margin-bottom:8px;cursor:pointer;flex-wrap:wrap}
 label.opt:has(input:checked){border-color:var(--accent)}
 label.opt b{font-family:ui-monospace,Consolas,monospace}
+input[type=text]{font:inherit;font-family:ui-monospace,Consolas,monospace;width:7em;padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--text)}
 button{font:inherit;border:0;border-radius:10px;padding:12px 18px;background:var(--accent);color:var(--accent-t);font-weight:600;cursor:pointer}
 button:disabled{opacity:.45;cursor:not-allowed}
 button.ghost{background:transparent;color:var(--muted);border:1px solid var(--line);font-weight:500;padding:8px 12px}
@@ -37,8 +36,9 @@ small{color:var(--muted)}
 </head>
 <body>
 <main>
-  <h1>CAD W40 / W400 Fixer</h1>
-  <p class="sub">Upload several .cad files, pick the option, download them all fixed. Your files are processed in this browser and are not uploaded anywhere.</p>
+  <h1>WFix</h1>
+  <p class="tag">Fix W400 / W40 in your rebar CAD exports in one click.</p>
+  <p class="sub">Upload several .cad files, pick the change, download the fixed ones. Files are processed in this browser and are not uploaded anywhere.</p>
 
   <div class="card">
     <h2>1 · Add files</h2>
@@ -52,6 +52,10 @@ small{color:var(--muted)}
     <h2>2 · Choose the change</h2>
     <label class="opt"><input type="radio" name="mode" value="40" checked> <span><b>W40 → 40</b> <small>(W400 → 400)</small></span></label>
     <label class="opt"><input type="radio" name="mode" value="W4"> <span><b>W40 → W4</b> <small>(W400 → W4)</small></span></label>
+    <label class="opt"><input type="radio" name="mode" value="custom"> <span><b>Custom</b></span>
+      <span>replace <input type="text" id="cFrom" placeholder="W500" maxlength="12" aria-label="Value to replace"> with <input type="text" id="cTo" placeholder="W5" maxlength="12" aria-label="New value"></span>
+      <small id="cHint" style="flex-basis:100%">The new value cannot be longer than the old one, so columns never move.</small>
+    </label>
     <small>Only the “3B” line is changed. Columns stay aligned, so 30000 does not move.</small>
   </div>
 
@@ -63,63 +67,126 @@ small{color:var(--muted)}
       <label class="opt"><input type="radio" name="out" value="sep"> <span><b>Separate .cad files</b> <small>(one download each; your browser may ask to allow multiple downloads)</small></span></label>
       <label class="opt" id="folderOpt"><input type="radio" name="out" value="folder"> <span><b>Save into a folder</b> <small>(Chrome or Edge on a computer: you pick the folder and files are written directly)</small></span></label>
     </div>
-    <div class="row" style="margin-top:12px">
+    <div class="row">
       <button id="go" disabled>Fix files and download</button>
       <button id="clear" class="ghost" disabled>Clear list</button>
-      <label><input type="checkbox" id="suffix" checked> <small>add “_fixed” to file names</small></label>
     </div>
     <div id="msg" aria-live="polite"></div>
-    <small>A single file always downloads as a normal .cad file.</small>
+    <small>Only files that need a change (and pass the checks) are downloaded, with their original names.</small>
   </div>
 </main>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script>
+/*CORE*/
+var DEFAULT_PAT = /(?<![A-Za-z0-9])W400?(?![A-Za-z0-9])/;
+function escRe(s){ return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+function lastTokenPos(l){ return l.replace(/[\r\n]+$/, '').search(/\S+$/); }
+
+// opt: {mode:'40'|'W4'|'custom', from, to}
+function fixText(text, opt){
+  var pat = opt.mode === 'custom'
+    ? new RegExp('(?<![A-Za-z0-9])' + escRe(opt.from) + '(?![A-Za-z0-9])', 'g')
+    : new RegExp(DEFAULT_PAT.source, 'g');
+  var changed = 0, has3B = false, issues = [];
+  var out = text.split(/(?<=\n)/).map(function(l){
+    if(l.slice(0,2) !== '3B') return l;
+    has3B = true;
+    var n = l.replace(pat, function(m){
+      var r = opt.mode === '40' ? m.slice(1) : opt.mode === 'W4' ? 'W4' : opt.to;
+      while(r.length < m.length) r += ' ';          // keep columns aligned
+      return r;
+    });
+    if(n === l) return l;
+    changed++;
+    if(n.length !== l.length) issues.push('columns would shift');
+    else if(lastTokenPos(n) !== lastTokenPos(l)) issues.push('last value moved');
+    if(opt.mode !== 'custom' && DEFAULT_PAT.test(n)) issues.push('W value still present');
+    return n;
+  });
+  if(!has3B) issues.push('no 3B line found');
+  var uniq = issues.filter(function(x, i){ return issues.indexOf(x) === i; });
+  return {text: out.join(''), changed: changed, issues: uniq};
+}
+
+// minimal ZIP writer (no compression, works offline, no library needed)
+var CRC_T = (function(){ var t = [], c, n, k; for(n = 0; n < 256; n++){ c = n; for(k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+function crc32(u){ var c = 0xFFFFFFFF; for(var i = 0; i < u.length; i++) c = CRC_T[(c ^ u[i]) & 255] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
+function makeZip(entries){        // entries: [{name, bytes:Uint8Array}]
+  var enc = new TextEncoder(), parts = [], central = [], offset = 0, now = new Date();
+  var dtime = (now.getHours() << 11) | (now.getMinutes() << 5) | (now.getSeconds() >> 1);
+  var ddate = ((now.getFullYear() - 1980) << 9) | ((now.getMonth() + 1) << 5) | now.getDate();
+  entries.forEach(function(e){
+    var nm = enc.encode(e.name), crc = crc32(e.bytes), sz = e.bytes.length;
+    var lh = new DataView(new ArrayBuffer(30));
+    lh.setUint32(0, 0x04034b50, true); lh.setUint16(4, 20, true); lh.setUint16(6, 0x0800, true); lh.setUint16(8, 0, true);
+    lh.setUint16(10, dtime, true); lh.setUint16(12, ddate, true); lh.setUint32(14, crc, true);
+    lh.setUint32(18, sz, true); lh.setUint32(22, sz, true); lh.setUint16(26, nm.length, true); lh.setUint16(28, 0, true);
+    var ch = new DataView(new ArrayBuffer(46));
+    ch.setUint32(0, 0x02014b50, true); ch.setUint16(4, 20, true); ch.setUint16(6, 20, true); ch.setUint16(8, 0x0800, true);
+    ch.setUint16(10, 0, true); ch.setUint16(12, dtime, true); ch.setUint16(14, ddate, true); ch.setUint32(16, crc, true);
+    ch.setUint32(20, sz, true); ch.setUint32(24, sz, true); ch.setUint16(28, nm.length, true);
+    ch.setUint32(42, offset, true);
+    parts.push(new Uint8Array(lh.buffer), nm, e.bytes);
+    central.push(new Uint8Array(ch.buffer), nm);
+    offset += 30 + nm.length + sz;
+  });
+  var cdSize = central.reduce(function(a, p){ return a + p.length; }, 0);
+  var end = new DataView(new ArrayBuffer(22));
+  end.setUint32(0, 0x06054b50, true); end.setUint16(8, entries.length, true); end.setUint16(10, entries.length, true);
+  end.setUint32(12, cdSize, true); end.setUint32(16, offset, true);
+  return new Blob(parts.concat(central, [new Uint8Array(end.buffer)]), {type: 'application/zip'});
+}
+/*ENDCORE*/
+
 (function(){
-  var files = [];            // {name, text, changed}
+  var files = [];
   var drop = document.getElementById('drop'), pick = document.getElementById('pick');
   var list = document.getElementById('list'), go = document.getElementById('go');
   var clr = document.getElementById('clear'), msg = document.getElementById('msg');
+  var cFrom = document.getElementById('cFrom'), cTo = document.getElementById('cTo'), cHint = document.getElementById('cHint');
 
   function bytesToStr(buf){            // byte-for-byte (Latin-1) so nothing gets altered
     var u = new Uint8Array(buf), out = [], i, CH = 8192;
     for(i = 0; i < u.length; i += CH) out.push(String.fromCharCode.apply(null, u.subarray(i, i + CH)));
     return out.join('');
   }
-  function strToBytes(s){
-    var u = new Uint8Array(s.length);
-    for(var i = 0; i < s.length; i++) u[i] = s.charCodeAt(i) & 255;
-    return u;
+  function strToBytes(s){ var u = new Uint8Array(s.length); for(var i = 0; i < s.length; i++) u[i] = s.charCodeAt(i) & 255; return u; }
+
+  function opt(){
+    var m = document.querySelector('input[name=mode]:checked').value;
+    return {mode: m, from: cFrom.value.trim(), to: cTo.value.trim()};
   }
-  var PAT = /(?<![A-Za-z0-9])W400?(?![A-Za-z0-9])/g;
-  function fix(text, mode){
-    var changed = 0;
-    var lines = text.split(/(?<=\n)/).map(function(l){
-      if(l.slice(0,2) !== '3B') return l;
-      var n = l.replace(PAT, function(m){
-        var r = mode === '40' ? m.slice(1) : 'W4';
-        while(r.length < m.length) r += ' ';     // keep columns aligned
-        return r;
-      });
-      if(n !== l) changed++;
-      return n;
-    });
-    return {text: lines.join(''), changed: changed};
+  function optError(o){
+    if(o.mode !== 'custom') return '';
+    if(!o.from) return 'Type the value to replace.';
+    if(/\s/.test(o.from) || /\s/.test(o.to)) return 'Values cannot contain spaces.';
+    if(o.to.length > o.from.length) return 'The new value is longer than the old one: columns would shift.';
+    return '';
   }
-  function mode(){ return document.querySelector('input[name=mode]:checked').value; }
 
   function render(){
+    var o = opt(), err = optError(o);
+    cHint.className = err ? 'warn' : ''; cHint.style.color = err ? '' : 'var(--muted)';
+    cHint.textContent = err || 'The new value cannot be longer than the old one, so columns never move.';
     if(!files.length){ list.innerHTML = '<small>No files added yet.</small>'; go.disabled = true; clr.disabled = true; return; }
-    var m = mode(), h = '<table><tr><th>File</th><th>Lines to change</th><th></th></tr>';
-    files.forEach(function(f){
-      var c = fix(f.text, m).changed;
-      var cls = c ? 'ok' : 'warn', note = c ? 'ready' : 'no W40/W400 found';
-      h += '<tr><td></td><td>' + c + '</td><td class="' + cls + '">' + note + '</td></tr>';
-    });
+    var h = '<table><tr><th>File</th><th>Lines to change</th><th>Check</th></tr>';
+    files.forEach(function(){ h += '<tr><td></td><td></td><td></td></tr>'; });
     list.innerHTML = h + '</table>';
-    var rows = list.querySelectorAll('tr:not(:first-child) td:first-child');
-    files.forEach(function(f, i){ rows[i].textContent = f.name; });
-    go.disabled = false; clr.disabled = false;
+    var trs = list.querySelectorAll('tr:not(:first-child)'), ready = 0;
+    files.forEach(function(f, i){
+      var tds = trs[i].children, cls, note;
+      tds[0].textContent = f.name;
+      if(err){ tds[1].textContent = '–'; cls = 'warn'; note = 'fix the Custom values above'; }
+      else{
+        var r = fixText(f.text, o);
+        tds[1].textContent = r.changed;
+        if(r.issues.length){ cls = 'err'; note = '⚠ ' + r.issues.join(', ') + ' (skipped)'; }
+        else if(!r.changed){ cls = 'warn'; note = 'nothing to change (skipped)'; }
+        else{ cls = 'ok'; note = '✓ ready'; ready++; }
+      }
+      tds[2].className = cls; tds[2].textContent = note;
+    });
+    go.disabled = !!err || !ready; clr.disabled = false;
   }
 
   function add(fl){
@@ -138,6 +205,12 @@ small{color:var(--muted)}
     msg.textContent = '';
   }
 
+  function saveBlob(blob, name){
+    var url = URL.createObjectURL(blob), a = document.createElement('a');
+    a.href = url; a.download = name; document.body.appendChild(a); a.click();
+    setTimeout(function(){ URL.revokeObjectURL(url); a.remove(); }, 1000);
+  }
+
   drop.addEventListener('click', function(){ pick.click(); });
   drop.addEventListener('keydown', function(e){ if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); pick.click(); } });
   pick.addEventListener('change', function(){ add(pick.files); pick.value = ''; });
@@ -145,30 +218,22 @@ small{color:var(--muted)}
   ['dragleave','drop'].forEach(function(t){ drop.addEventListener(t, function(e){ e.preventDefault(); drop.classList.remove('over'); }); });
   drop.addEventListener('drop', function(e){ add(e.dataTransfer.files); });
   document.querySelectorAll('input[name=mode]').forEach(function(r){ r.addEventListener('change', render); });
+  [cFrom, cTo].forEach(function(i){ i.addEventListener('input', function(){ document.querySelector('input[name=mode][value=custom]').checked = true; render(); }); });
   if(!window.showDirectoryPicker){ var fo = document.getElementById('folderOpt'); fo.style.opacity = '.5'; fo.querySelector('input').disabled = true; fo.querySelector('small').textContent = '(not supported in this browser: use Chrome or Edge on a computer)'; }
   clr.addEventListener('click', function(){ files = []; msg.textContent = ''; render(); });
-
-  function saveBlob(blob, name){
-    var url = URL.createObjectURL(blob), a = document.createElement('a');
-    a.href = url; a.download = name; document.body.appendChild(a); a.click();
-    setTimeout(function(){ URL.revokeObjectURL(url); a.remove(); }, 1000);
-  }
-  function outName(name, suf){
-    if(!suf) return name;
-    var d = name.lastIndexOf('.');
-    return d > 0 ? name.slice(0,d) + '_fixed' + name.slice(d) : name + '_fixed';
-  }
 
   go.addEventListener('click', async function(){
     msg.className = ''; msg.textContent = 'Working…';
     try{
-      var m = mode(), suf = document.getElementById('suffix').checked, total = 0, zero = 0, outs = [];
+      var o = opt(), outs = [], skipped = 0;
       files.forEach(function(f){
-        var res = fix(f.text, m); total += res.changed; if(!res.changed) zero++;
-        outs.push({name: outName(f.name, suf), bytes: strToBytes(res.text)});
+        var r = fixText(f.text, o);
+        if(!r.changed || r.issues.length){ skipped++; return; }
+        outs.push({name: f.name, bytes: strToBytes(r.text)});
       });
+      if(!outs.length){ msg.className = 'warn'; msg.textContent = 'Nothing to download.'; return; }
       var how = document.querySelector('input[name=out]:checked').value;
-      if(outs.length === 1){                       // single file: download it directly
+      if(outs.length === 1){
         saveBlob(new Blob([outs[0].bytes], {type:'application/octet-stream'}), outs[0].name);
       }else if(how === 'sep'){
         for(var i = 0; i < outs.length; i++){
@@ -183,18 +248,16 @@ small{color:var(--muted)}
           await w.write(outs[j].bytes); await w.close();
         }
       }else{
-        if(typeof JSZip === 'undefined') throw new Error('The ZIP library could not load. Check your internet connection and reload.');
-        var zip = new JSZip();
-        outs.forEach(function(o){ zip.file(o.name, o.bytes); });
-        saveBlob(await zip.generateAsync({type:'blob'}), 'fixed_cad_files.zip');
+        saveBlob(makeZip(outs), 'fixed_cad_files.zip');
       }
       msg.className = 'ok';
-      msg.textContent = 'Done: ' + files.length + ' file(s), ' + total + ' line(s) changed' + (zero ? ' (' + zero + ' file(s) had nothing to change)' : '') + '.';
+      msg.textContent = 'Done: ' + outs.length + ' file(s) fixed and downloaded' + (skipped ? ', ' + skipped + ' skipped' : '') + '.';
     }catch(e){
       if(e && e.name === 'AbortError'){ msg.className = 'warn'; msg.textContent = 'Cancelled.'; return; }
       msg.className = 'err'; msg.textContent = 'Something went wrong' + (e && e.message ? ': ' + e.message : '') + '.';
     }
   });
+  render();
 })();
 </script>
 </body>
