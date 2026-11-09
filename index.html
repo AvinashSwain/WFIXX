@@ -74,6 +74,17 @@ small{color:var(--muted)}
     <div id="msg" aria-live="polite"></div>
     <small>Only files that need a change (and pass the checks) are downloaded, with their original names.</small>
   </div>
+
+  <div class="card" id="wCard" hidden>
+    <h2>4 · Weights for Excel</h2>
+    <div class="files" id="wList"></div>
+    <div class="row" style="margin-top:12px">
+      <button id="wCopy">Copy weights (one column)</button>
+      <button id="wCopy2" class="ghost">Copy names + weights</button>
+    </div>
+    <div id="wMsg" aria-live="polite" style="margin-top:8px"></div>
+    <small>Files are listed in name order. Click a cell in Excel and paste (Ctrl+V): the weights fill down one column. A file with no weight line leaves an empty row so the order never shifts.</small>
+  </div>
 </main>
 
 <script>
@@ -136,6 +147,10 @@ function makeZip(entries){        // entries: [{name, bytes:Uint8Array}]
   end.setUint32(12, cdSize, true); end.setUint32(16, offset, true);
   return new Blob(parts.concat(central, [new Uint8Array(end.buffer)]), {type: 'application/zip'});
 }
+function getWeight(text){
+  var m = /^8 WEIGHT:\s*([0-9]+(?:\.[0-9]+)?)/m.exec(text);
+  return m ? m[1] : '';
+}
 /*ENDCORE*/
 
 (function(){
@@ -168,7 +183,7 @@ function makeZip(entries){        // entries: [{name, bytes:Uint8Array}]
     var o = opt(), err = optError(o);
     cHint.className = err ? 'warn' : ''; cHint.style.color = err ? '' : 'var(--muted)';
     cHint.textContent = err || 'The new value cannot be longer than the old one, so columns never move.';
-    if(!files.length){ list.innerHTML = '<small>No files added yet.</small>'; go.disabled = true; clr.disabled = true; return; }
+    if(!files.length){ list.innerHTML = '<small>No files added yet.</small>'; go.disabled = true; clr.disabled = true; renderWeights(); return; }
     var h = '<table><tr><th>File</th><th>Lines to change</th><th>Check</th></tr>';
     files.forEach(function(){ h += '<tr><td></td><td></td><td></td></tr>'; });
     list.innerHTML = h + '</table>';
@@ -187,7 +202,43 @@ function makeZip(entries){        // entries: [{name, bytes:Uint8Array}]
       tds[2].className = cls; tds[2].textContent = note;
     });
     go.disabled = !!err || !ready; clr.disabled = false;
+    renderWeights();
   }
+
+  var wCard = document.getElementById('wCard'), wList = document.getElementById('wList'), wMsg = document.getElementById('wMsg');
+  function renderWeights(){
+    wCard.hidden = !files.length;
+    if(!files.length) return;
+    var h = '<table><tr><th>#</th><th>File</th><th>Weight</th></tr>', total = 0, n = 0;
+    files.forEach(function(){ h += '<tr><td></td><td></td><td></td></tr>'; });
+    wList.innerHTML = h + '</table>';
+    var trs = wList.querySelectorAll('tr:not(:first-child)');
+    files.forEach(function(f, i){
+      var w = getWeight(f.text), t = trs[i].children;
+      t[0].textContent = i + 1; t[1].textContent = f.name;
+      t[2].textContent = w || 'not found'; if(!w) t[2].className = 'warn'; else{ total += parseFloat(w); n++; }
+    });
+    wMsg.className = ''; wMsg.textContent = n + ' of ' + files.length + ' weights found. Total: ' + (Math.round(total * 100) / 100);
+  }
+  function copyText(txt){
+    function fallback(){
+      var ta = document.createElement('textarea'); ta.value = txt; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      var ok = false; try{ ok = document.execCommand('copy'); }catch(e){}
+      ta.remove(); return ok;
+    }
+    if(navigator.clipboard && window.isSecureContext){ return navigator.clipboard.writeText(txt).then(function(){ return true; }, function(){ return fallback(); }); }
+    return Promise.resolve(fallback());
+  }
+  function doCopy(withNames){
+    var txt = files.map(function(f){ var w = getWeight(f.text); return withNames ? f.name + '\t' + w : w; }).join('\r\n');
+    copyText(txt).then(function(ok){
+      wMsg.className = ok ? 'ok' : 'err';
+      wMsg.textContent = ok ? 'Copied ' + files.length + ' row(s). Paste into Excel with Ctrl+V.' : 'Copy was blocked by the browser. Select the table and copy it by hand.';
+    });
+  }
+  document.getElementById('wCopy').addEventListener('click', function(){ doCopy(false); });
+  document.getElementById('wCopy2').addEventListener('click', function(){ doCopy(true); });
 
   function add(fl){
     var arr = Array.prototype.slice.call(fl), left = arr.length;
@@ -197,7 +248,7 @@ function makeZip(entries){        // entries: [{name, bytes:Uint8Array}]
       r.onload = function(){
         files = files.filter(function(x){ return x.name !== f.name; });
         files.push({name: f.name, text: bytesToStr(r.result)});
-        if(--left === 0){ files.sort(function(a,b){ return a.name < b.name ? -1 : 1; }); render(); }
+        if(--left === 0){ files.sort(function(a,b){ return a.name.localeCompare(b.name, undefined, {numeric:true}); }); render(); }
       };
       r.onerror = function(){ if(--left === 0) render(); };
       r.readAsArrayBuffer(f);
