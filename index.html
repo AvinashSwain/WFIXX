@@ -65,7 +65,7 @@ small{color:var(--muted)}
     <div style="margin-top:12px">
       <label class="opt"><input type="radio" name="out" value="zip" checked> <span><b>One ZIP file</b> <small>(all files together)</small></span></label>
       <label class="opt"><input type="radio" name="out" value="sep"> <span><b>Separate .cad files</b> <small>(one download each; your browser may ask to allow multiple downloads)</small></span></label>
-      <label class="opt" id="folderOpt"><input type="radio" name="out" value="folder"> <span><b>Save into a folder</b> <small>(Chrome or Edge on a computer: you pick the folder and files are written directly)</small></span></label>
+      <label class="opt" id="folderOpt"><input type="radio" name="out" value="folder"> <span><b>Save into a folder</b> <small>(Chrome, Edge or Brave on a computer: pick a new or sub-folder, not Downloads, Desktop or Documents itself)</small></span></label>
     </div>
     <div class="row">
       <button id="go" disabled>Fix files and download</button>
@@ -304,7 +304,7 @@ function getWeight(text){
       msg.className = 'ok';
       msg.textContent = 'Done: ' + outs.length + ' file(s) fixed and downloaded' + (skipped ? ', ' + skipped + ' skipped' : '') + '.';
     }catch(e){
-      if(e && e.name === 'AbortError'){ msg.className = 'warn'; msg.textContent = 'Cancelled.'; return; }
+      if(e && e.name === 'AbortError'){ msg.className = 'warn'; msg.textContent = 'Cancelled, or the browser blocked that folder. Downloads, Desktop, Documents and drive roots are not allowed: pick a new sub-folder instead, or choose One ZIP file / Separate .cad files.'; return; }
       msg.className = 'err'; msg.textContent = 'Something went wrong' + (e && e.message ? ': ' + e.message : '') + '.';
     }
   });
